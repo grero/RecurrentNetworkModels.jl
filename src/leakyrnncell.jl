@@ -22,7 +22,7 @@ function LeakyRNNCell(
     init_weight=nothing,
     init_recurrent_weight=init_weight,
     init_state=zeros32,
-    τ=Float32(20.0)
+    τ=Float32(0.2)
 )
     return LeakyRNNCell(
         static(train_state),
