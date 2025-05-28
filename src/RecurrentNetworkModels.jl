@@ -1,4 +1,5 @@
 module RecurrentNetworkModels
+using StatsBase
 using Lux
 using Lux:@concrete, StaticBool, IntegerType, AbstractRecurrentCell, BoolType, AbstractRNG, False, True, static
 using Optimisers
