@@ -29,29 +29,7 @@ end
 accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end] .- y_true[:,end-10:end],dims=1)))
 
 function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3})
-    dev = reactant_device()
-    cdev = cpu_device()
-    rng = StableRNG(12345)
-    ps,st = dev(Lux.setup(rng, model))
-    train_state = Training.TrainState(model, ps, st, Adam(0.01f0))
-    # copy to device
-    (xt,yt)  = dev.((x,y))
-    model_compiled = @compile model(xt[:,:,1], ps, Lux.testmode(st))
-    for epoch in 1:25
-        #TODO: Create a new (xt,yt) for every epoch
-        total_loss = 0.0f0
-        total_samples = 0
-        for (_x,_y) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3))
-            (_, loss, _, train_state) = Training.single_train_step!(
-                AutoEnzyme(), lossfn, (_x, _y), train_state
-            )
-            total_loss += loss * length(_y)
-            total_samples += length(_y)
-        end
-        @printf "Epoch [%3d]: Loss %4.5f\n" epoch (total_loss / total_samples)
-    end
-
-    return cdev((train_state.parameters, train_state.states))
+    train_model(model, ()->(x,y))
 end
 
 function train_model(model, data_provider::Function)
