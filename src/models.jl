@@ -19,17 +19,21 @@ function LeakyRNNModel(in_dims, hidden_dims, out_dims)
 end
 const lossfn = MSELoss()
 
-function compute_loss(model, ps, st, (x,y))
+function compute_loss(model, ps, st, (x,y,z))
     ŷ, st_ = model(x, ps, st)
     loss = lossfn(ŷ, y)
     return loss, st_, (;y_pred=ŷ) 
 end
 
+function compute_loss(ŷ, y, z)
+    los = lossfn(ŷ,y)
+end
+
 #this is just random; replace with something meaningful
 accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end] .- y_true[:,end-10:end],dims=1)))
 
-function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3})
-    train_model(model, ()->(x,y))
+function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3})
+    train_model(model, ()->(x,y,z))
 end
 
 function train_model(model, data_provider::Function)
@@ -39,15 +43,15 @@ function train_model(model, data_provider::Function)
     ps,st = dev(Lux.setup(rng, model))
     train_state = Training.TrainState(model, ps, st, Adam(0.01f0))
     #evaluation set
-    (xe,ye)  = dev.(data_provider())
+    (xe,ye,ze)  = dev.(data_provider())
     model_compiled = @compile model(first(Lux.eachslice(xe,dims=3)), ps, Lux.testmode(st))
     for epoch in 1:25
-        (xt,yt)  = dev.(data_provider())
+        (xt,yt,zt)  = dev.(data_provider())
         total_loss = 0.0f0
         total_samples = 0
-        for (_x,_y) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3))
+        for (_x,_y,_z) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3), Lux.eachslice(zt, dims=3))
             (_, loss, _, train_state) = Training.single_train_step!(
-                AutoEnzyme(), lossfn, (_x, _y), train_state
+                AutoEnzyme(), compute_loss, (_x, _y, _z), train_state
             )
             total_loss += loss * length(_y)
             total_samples += length(_y)
@@ -59,11 +63,11 @@ function train_model(model, data_provider::Function)
         total_samples = 0
 
         st_ = Lux.testmode(train_state.states) # what does this do?
-        for (_x,_y) in zip(Lux.eachslice(xe,dims=3), Lux.eachslice(ye,dims=3))
+        for (_x,_y,_z) in zip(Lux.eachslice(xe,dims=3), Lux.eachslice(ye,dims=3), Lux.eachslice(ze, dims=3))
             ŷ,st_ = model_compiled(_x, train_state.parameters, st_)
-            ŷ, y = (cdev(ŷ), cdev(_y))
+            ŷ, y,z = (cdev(ŷ), cdev(_y), cdev(_z))
             total_acc += accuracy(ŷ, y)*length(y)
-            total_loss += lossfn(ŷ, y)*length(y)
+            total_loss += compute_loss(ŷ, y,z)*length(y)
             total_samples += length(y)
         end
 
