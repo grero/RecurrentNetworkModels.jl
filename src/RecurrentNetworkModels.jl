@@ -7,6 +7,7 @@ using Enzyme
 using Zygote
 using Reactant
 
+include("losses.jl")
 include("leakyrnncell.jl")
 include("models.jl")
 

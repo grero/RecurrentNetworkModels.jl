@@ -17,16 +17,16 @@ function LeakyRNNModel(in_dims, hidden_dims, out_dims)
        @return hcat(output...)
     end
 end
-const lossfn = MSELoss()
+const lossfn = WeightedMSELoss()
 
-function compute_loss(model, ps, st, (x,y,z))
+function compute_loss(model, ps, st, (x,y,w))
     ŷ, st_ = model(x, ps, st)
-    loss = lossfn(ŷ, y)
+    loss = lossfn(ŷ, y, w)
     return loss, st_, (;y_pred=ŷ) 
 end
 
-function compute_loss(ŷ, y, z)
-    los = lossfn(ŷ,y)
+function compute_loss(ŷ, y, w)
+    los = lossfn(ŷ,y,w)
 end
 
 #this is just random; replace with something meaningful
@@ -43,15 +43,15 @@ function train_model(model, data_provider::Function)
     ps,st = dev(Lux.setup(rng, model))
     train_state = Training.TrainState(model, ps, st, Adam(0.01f0))
     #evaluation set
-    (xe,ye,ze)  = dev.(data_provider())
+    (xe,ye,we)  = dev.(data_provider())
     model_compiled = @compile model(first(Lux.eachslice(xe,dims=3)), ps, Lux.testmode(st))
     for epoch in 1:25
-        (xt,yt,zt)  = dev.(data_provider())
+        (xt,yt,wt)  = dev.(data_provider())
         total_loss = 0.0f0
         total_samples = 0
-        for (_x,_y,_z) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3), Lux.eachslice(zt, dims=3))
+        for (_x,_y,_w) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3), Lux.eachslice(wt, dims=3))
             (_, loss, _, train_state) = Training.single_train_step!(
-                AutoEnzyme(), compute_loss, (_x, _y, _z), train_state
+                AutoEnzyme(), compute_loss, (_x, _y, _w), train_state
             )
             total_loss += loss * length(_y)
             total_samples += length(_y)
@@ -63,15 +63,15 @@ function train_model(model, data_provider::Function)
         total_samples = 0
 
         st_ = Lux.testmode(train_state.states) # what does this do?
-        for (_x,_y,_z) in zip(Lux.eachslice(xe,dims=3), Lux.eachslice(ye,dims=3), Lux.eachslice(ze, dims=3))
+        for (_x,_y,_w) in zip(Lux.eachslice(xe,dims=3), Lux.eachslice(ye,dims=3), Lux.eachslice(we, dims=3))
             ŷ,st_ = model_compiled(_x, train_state.parameters, st_)
-            ŷ, y,z = (cdev(ŷ), cdev(_y), cdev(_z))
+            ŷ, y,w = (cdev(ŷ), cdev(_y), cdev(_w))
             total_acc += accuracy(ŷ, y)*length(y)
-            total_loss += compute_loss(ŷ, y,z)*length(y)
+            total_loss += compute_loss(ŷ, y,w)*length(y)
             total_samples += length(y)
         end
 
-        @printf "Validatio: \tLoss %4.5f\tAccuracy %4.5f\n" (total_loss/total_samples) (total_acc / total_samples)
+        @printf "Validation: \tLoss %4.5f\tAccuracy %4.5f\n" (total_loss/total_samples) (total_acc / total_samples)
 
     end
 
