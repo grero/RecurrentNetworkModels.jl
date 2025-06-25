@@ -81,7 +81,7 @@ function CRC.rrule(
         res = fused_agg(sum, op, x, y, w)
         ∇fused_agg_custom_derivative =
             Δ -> begin
-                ∂x = @thunk derivative.(Ref(op), x, y).* Δ
+                ∂x = @thunk derivative.(Ref(op), x, y, w).* Δ
                 return NoTangent(), NoTangent(), NoTangent(), ∂x, NoTangent()
             end
         return res, ∇fused_agg_custom_derivative
