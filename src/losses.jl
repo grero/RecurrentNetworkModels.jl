@@ -92,7 +92,7 @@ function CRC.rrule(
         x_dual = Dual{Nothing,eltype(x),1}.(x, (Partials{1,eltype(x)}((one(eltype(x)),)),))
         x_partials = similar(x)
         T = eltype(x)
-        res = Core.Compiler.return_type(op, Tuple{T,eltype(y)})(0)
+        res = Core.Compiler.return_type(op, Tuple{T,eltype(y), eltype(w)})(0)
         @inbounds @simd for i in eachindex(x_partials, x, y, w)
             x_dual = Dual{Nothing,T,1}(x[i], Partials{1,T}((one(T),)))
             tmp = op(x_dual, y[i], w[i])
