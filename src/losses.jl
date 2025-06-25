@@ -49,9 +49,9 @@ WeightedMSELoss(; agg=mean) = GenericWeightedLossFunction(weighted_l2_distance_l
 fused_agg(::typeof(sum), op::OP, x::Number, y::Number, w::Number) where {OP} = op(x, y, w)
 function fused_agg(::typeof(sum), op::OP, x::AbstractArray, y::AbstractArray, w::AbstractArray) where {OP}
     if fast_scalar_indexing(x) && fast_scalar_indexing(y) && fast_scalar_indexing(w)
-        res = Core.Compiler.return_type(op, Tuple{eltype(x),eltype(y),eltpype(w)})(0)
+        res = Core.Compiler.return_type(op, Tuple{eltype(x),eltype(y),eltype(w)})(0)
         @simd ivdep for i in eachindex(x, y, w)
-            @inbounds res += w[i]*op(x[i], y[i])
+            @inbounds res += op(x[i], y[i], w[i])
         end
         return res
     end
