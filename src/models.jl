@@ -36,7 +36,7 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
     train_model(model, ()->(x,y,z))
 end
 
-function train_model(model, data_provider::Function)
+function train_model(model, data_provider::Function;nepochs=25)
     dev = reactant_device()
     cdev = cpu_device()
     rng = StableRNG(12345)
@@ -45,7 +45,8 @@ function train_model(model, data_provider::Function)
     #evaluation set
     (xe,ye,we)  = dev.(data_provider())
     model_compiled = @compile model(first(Lux.eachslice(xe,dims=3)), ps, Lux.testmode(st))
-    for epoch in 1:25
+    prog = Progress(nepochs, "Training model...")
+    for epoch in 1:nepochs
         (xt,yt,wt)  = dev.(data_provider())
         total_loss = 0.0f0
         total_samples = 0
@@ -56,8 +57,7 @@ function train_model(model, data_provider::Function)
             total_loss += loss * length(_y)
             total_samples += length(_y)
         end
-        @printf "Epoch [%3d]: Loss %4.5f\n" epoch (total_loss / total_samples)
-
+        loss = @sprintf "%4.5f" total_loss / total_samples
         total_acc = 0.0f0
         total_loss = 0.0f0
         total_samples = 0
@@ -71,8 +71,9 @@ function train_model(model, data_provider::Function)
             total_samples += length(y)
         end
 
-        @printf "Validation: \tLoss %4.5f\tAccuracy %4.5f\n" (total_loss/total_samples) (total_acc / total_samples)
-
+        vloss = @sprintf "%4.5f" total_loss/total_samples
+        vacc = @sprintf "%4.5f" total_acc / total_samples
+        next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc)])
     end
 
     return cdev((train_state.parameters, train_state.states))

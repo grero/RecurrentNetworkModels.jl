@@ -6,6 +6,7 @@ using Optimisers
 using Enzyme
 using Zygote
 using Reactant
+using ProgressMeter
 
 include("losses.jl")
 include("leakyrnncell.jl")
