@@ -58,6 +58,10 @@ function fused_agg(::typeof(sum), op::OP, x::AbstractArray, y::AbstractArray, w:
     return fallback_fused_agg(sum, op, x, y, w)
 end
 
+function fused_agg(::typeof(mean), op::OP, x::AbstractArray, y::AbstractArray, w::AbstractArray) where {OP}
+    return fused_agg(sum, op, x, y, w) / length(x)
+end
+
 @inline fallback_fused_agg(f::F, op::OP, x::AbstractArray, y::AbstractArray, w::AbstractArray) where {F,OP} = f(op.(x,y,w))
 
 
