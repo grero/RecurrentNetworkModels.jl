@@ -1,6 +1,8 @@
-import Lux.LossFunctionImpl:fused_agg, fallback_fused_agg, check_sizes
+import Lux.LossFunctionImpl:fused_agg, fallback_fused_agg, check_sizes, fast_scalar_indexing
 import Lux.unsafe_apply_loss
-using Lux: @thunk, CRC, GenericLossFunction, AbstractLossFunction
+using Lux: @thunk, CRC, GenericLossFunction, AbstractLossFunction, NoTangent
+using Lux: ForwardDiff
+using Lux.ForwardDiff:Dual, Partials
 
 @concrete struct GenericWeightedLossFunction <: AbstractLossFunction
     loss_fn
