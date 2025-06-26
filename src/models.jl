@@ -5,16 +5,21 @@ using StableRNGs
 function LeakyRNNModel(in_dims, hidden_dims, out_dims)
     rnn_cell = LeakyRNNCell(in_dims => hidden_dims)
     classifier = Dense(hidden_dims => out_dims, sigmoid)
-    return @compact(;rnn_cell, classifier) do x::AbstractArray{T,2} where {T}
-        x = reshape(x, size(x)..., 1)
+    return @compact(;rnn_cell, classifier) do x::AbstractArray{T,3} where {T}
+        #x = reshape(x, size(x)..., 1)
         x_init, x_rest = Lux.Iterators.peel(LuxOps.eachslice(x, Val(2)))
         y, carry = rnn_cell(x_init)
-        output = [vec(classifier(y))]
+        sy = size(y)
+        oo = classifier(y)
+        so = size(oo)
+        output = reshape(oo, so[1], 1, so[2])
         for x in x_rest
             y,carry = rnn_cell((x,carry))
-            output = vcat(output, [vec(classifier(y))])
+            #oo = classifier(y)
+            #@show typeof(oo) size(oo)
+            output = hcat(output, reshape(classifier(y),so[1],1,so[2]))
         end
-       @return hcat(output...)
+       @return output
     end
 end
 const lossfn = WeightedMSELoss()
@@ -30,7 +35,7 @@ function compute_loss(ŷ, y, w)
 end
 
 #this is just random; replace with something meaningful
-accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end] .- y_true[:,end-10:end],dims=1)))
+accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:],dims=1)))
 
 function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3})
     train_model(model, ()->(x,y,z))
@@ -44,36 +49,38 @@ function train_model(model, data_provider::Function;nepochs=25)
     train_state = Training.TrainState(model, ps, st, Adam(0.01f0))
     #evaluation set
     (xe,ye,we)  = dev.(data_provider())
-    model_compiled = @compile model(first(Lux.eachslice(xe,dims=3)), ps, Lux.testmode(st))
+    model_compiled = @compile model(xe, ps, Lux.testmode(st))
     prog = Progress(nepochs, "Training model...")
+    total_loss0 = 0.0f0
     for epoch in 1:nepochs
         (xt,yt,wt)  = dev.(data_provider())
-        total_loss = 0.0f0
-        total_samples = 0
-        for (_x,_y,_w) in zip(Lux.eachslice(xt,dims=3), Lux.eachslice(yt,dims=3), Lux.eachslice(wt, dims=3))
-            (_, loss, _, train_state) = Training.single_train_step!(
-                AutoEnzyme(), compute_loss, (_x, _y, _w), train_state
-            )
-            total_loss += loss * length(_y)
-            total_samples += length(_y)
+        
+        (_, loss, _, train_state) = Training.single_train_step!(
+            AutoEnzyme(), compute_loss, (xt, yt, wt), train_state
+        )
+        total_loss = loss * length(yt)
+        total_samples = length(yt)
+
+        if epoch == 1
+            total_loss0 = total_loss
         end
         loss = @sprintf "%4.5f" total_loss / total_samples
+        total_loss_change = (total_loss0-total_loss)/total_loss0
         total_acc = 0.0f0
         total_loss = 0.0f0
         total_samples = 0
 
         st_ = Lux.testmode(train_state.states) # what does this do?
-        for (_x,_y,_w) in zip(Lux.eachslice(xe,dims=3), Lux.eachslice(ye,dims=3), Lux.eachslice(we, dims=3))
-            ŷ,st_ = model_compiled(_x, train_state.parameters, st_)
-            ŷ, y,w = (cdev(ŷ), cdev(_y), cdev(_w))
-            total_acc += accuracy(ŷ, y)*length(y)
-            total_loss += compute_loss(ŷ, y,w)*length(y)
-            total_samples += length(y)
-        end
+        ŷ,st_ = model_compiled(xe, train_state.parameters, st_)
+        ŷ, y,w = (cdev(ŷ), cdev(ye), cdev(we))
+        total_acc = accuracy(ŷ, ye)*length(ye)
+        total_loss += compute_loss(ŷ, y,w)*length(y)
+        total_samples = length(ye)
 
         vloss = @sprintf "%4.5f" total_loss/total_samples
         vacc = @sprintf "%4.5f" total_acc / total_samples
-        next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc)])
+        next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc),
+                                (:TotalLossChange, total_loss_change)])
     end
 
     return cdev((train_state.parameters, train_state.states))
