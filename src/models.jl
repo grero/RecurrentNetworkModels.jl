@@ -38,10 +38,10 @@ end
 accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:],dims=1)))
 
 function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3})
-    train_model(model, ()->(x,y,z))
+    train_model(model, ()->(x,y,z), accuracy)
 end
 
-function train_model(model, data_provider::Function;nepochs=25)
+function train_model(model, data_provider::Function, accuracy_func::Function=accuracy;nepochs=25)
     dev = reactant_device()
     cdev = cpu_device()
     rng = StableRNG(12345)
@@ -73,8 +73,8 @@ function train_model(model, data_provider::Function;nepochs=25)
         st_ = Lux.testmode(train_state.states) # what does this do?
         ŷ,st_ = model_compiled(xe, train_state.parameters, st_)
         ŷ, y,w = (cdev(ŷ), cdev(ye), cdev(we))
-        total_acc = accuracy(ŷ, ye)*length(ye)
-        total_loss += compute_loss(ŷ, y,w)*length(y)
+        total_acc = accuracy_func(ŷ, ye)*length(ye)
+        total_loss = compute_loss(ŷ, y,w)*length(ye)
         total_samples = length(ye)
 
         vloss = @sprintf "%4.5f" total_loss/total_samples
