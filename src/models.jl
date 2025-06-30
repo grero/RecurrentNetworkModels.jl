@@ -21,6 +21,7 @@ function LeakyRNNModel(in_dims, hidden_dims, out_dims)
        @return output
     end
 end
+
 const lossfn = WeightedMSELoss()
 
 function compute_loss(model, ps, st, (x,y,w))
