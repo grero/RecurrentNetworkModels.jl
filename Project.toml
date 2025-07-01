@@ -1,7 +1,7 @@
 name = "RecurrentNetworkModels"
 uuid = "60024d2f-e447-450b-ab68-c236a8c9f1ce"
 authors = ["Roger Heirkstad <roger.herikstad@gmail.com>"]
-version = "0.2.0"
+version = "0.3.0"
 
 [deps]
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
