@@ -7,6 +7,7 @@ using Enzyme
 using Zygote
 using Reactant
 using ProgressMeter
+using JLD2
 
 include("losses.jl")
 include("leakyrnncell.jl")
