@@ -27,7 +27,7 @@ const lossfn = WeightedMSELoss()
 function compute_loss(model, ps, st, (x,y,w))
     ŷ, st_ = model(x, ps, st)
     loss = lossfn(ŷ, y, w)
-    return loss, st_, (;y_pred=ŷ) 
+    return loss, st_, (;y_pred=ŷ)
 end
 
 function compute_loss(ŷ, y, w)
