@@ -70,21 +70,46 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
         end
         loss = @sprintf "%4.5f" total_loss / total_samples
         total_loss_change = (total_loss0-total_loss)/total_loss0
+
+        # save the state only if the loss decreased
+        if total_loss < total_loss_p
+            _ps,_st =  cdev((train_state.parameters, train_state.states))
+            JLD2.save(save_file, Dict("state"=>_st, "params"=>_ps))
+        end
+        total_loss_p = total_loss
+
+        #set up validation
         total_acc = 0.0f0
         total_loss = 0.0f0
         total_samples = 0
 
         st_ = Lux.testmode(train_state.states) # what does this do?
         ŷ,st_ = model_compiled(xe, train_state.parameters, st_)
-        ŷ, y,w = (cdev(ŷ), cdev(ye), cdev(we))
-        total_acc = accuracy_func(ŷ, ye)*length(ye)
-        total_loss = compute_loss(ŷ, y,w)*length(ye)
-        total_samples = length(ye)
+        ŷp, y,w = (cdev(ŷ), cdev(ye), cdev(we))
+        total_acc = accuracy_func(ŷp, y)*length(y)
+        total_loss = compute_loss(ŷp, y,w)*length(y)
+        total_samples = length(y)
+        total_acc /= total_samples
+        if total_acc >= accuracy_threshold
+            finish!(prog)
+            print(stdout, "Accuracy threshold achieved at $total_acc. Returning...\n")
+            break
+        end
 
         vloss = @sprintf "%4.5f" total_loss/total_samples
-        vacc = @sprintf "%4.5f" total_acc / total_samples
+        vacc = @sprintf "%4.5f" total_acc
         next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc),
                                 (:TotalLossChange, total_loss_change)])
+
+        # cleanup; at some point we should use DeviceIterator here, but for now try and make use of the internals
+        Lux.MLDataDevices.Internal.unsafe_free!(xt)
+        Lux.MLDataDevices.Internal.unsafe_free!(yt)
+        Lux.MLDataDevices.Internal.unsafe_free!(wt)
+        Lux.MLDataDevices.Internal.unsafe_free!(ŷ)
+        # run GC every 10th epoch
+        if epoch % 10 == 0
+            GC.gc()
+        end
     end
 
     return cdev((train_state.parameters, train_state.states))
