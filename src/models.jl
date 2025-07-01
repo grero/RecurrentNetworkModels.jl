@@ -37,24 +37,28 @@ end
 #this is just random; replace with something meaningful
 accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:],dims=1)))
 
-function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3})
-    train_model(model, ()->(x,y,z), accuracy)
+function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3};kwargs...)
+    train_model(model, ()->(x,y,z), accuracy;kwargs...)
 end
 
-function train_model(model, data_provider::Function, accuracy_func::Function=accuracy;nepochs=25)
+function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0)
+    if isfile(save_file) && !redo
+        error("File $save_file already exist. To overwrite, set `redo` to `true`.")
+    end
     dev = reactant_device()
     cdev = cpu_device()
     rng = StableRNG(12345)
     ps,st = dev(Lux.setup(rng, model))
-    train_state = Training.TrainState(model, ps, st, Adam(0.01f0))
+    train_state = Training.TrainState(model, ps, st, Adam(learning_rate))
     #evaluation set
     (xe,ye,we)  = dev.(data_provider())
     model_compiled = @compile model(xe, ps, Lux.testmode(st))
     prog = Progress(nepochs, "Training model...")
     total_loss0 = 0.0f0
+    total_loss_p = typemax(Float32)
     for epoch in 1:nepochs
         (xt,yt,wt)  = dev.(data_provider())
-        
+
         (_, loss, _, train_state) = Training.single_train_step!(
             AutoEnzyme(), compute_loss, (xt, yt, wt), train_state
         )
