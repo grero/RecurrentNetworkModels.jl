@@ -52,7 +52,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     if isfile(fname) && !redo
+        print(stdio, "File $(fname) already exists. Loading parameters. To overwrite, call with `redo=true`\n")
         ps,st = JLD2.load(fname, "params","state")
+        # TODO: Restart training using the loaded parameters
         return (ps, st)
     end
     dev = reactant_device()
