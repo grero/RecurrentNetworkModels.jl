@@ -1,6 +1,7 @@
 using Lux
 using Printf
 using StableRNGs
+using CRC32c
 
 function LeakyRNNModel(in_dims, hidden_dims, out_dims)
     rnn_cell = LeakyRNNCell(in_dims => hidden_dims)
@@ -41,13 +42,21 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
     train_model(model, ()->(x,y,z), accuracy;kwargs...)
 end
 
-function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0)
-    if isfile(save_file) && !redo
-        error("File $save_file already exist. To overwrite, set `redo` to `true`.")
+function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
+    # create signature
+    h = crc32c(string(nepochs),h)
+    h = crc32c(string(accuracy_threshold), h)
+    h = crc32c(string(learning_rate), h)
+    h = crc32c(string(freeze_input),h)
+    h = crc32c(string(rseed), h)
+    hs = string(h, base=16)
+    fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
+    if isfile(fname) && !redo
+        error("File $fname already exist. To overwrite, set `redo` to `true`.")
     end
     dev = reactant_device()
     cdev = cpu_device()
-    rng = StableRNG(12345)
+    rng=StableRNG(rseed)
     ps,st = dev(Lux.setup(rng, model))
     train_state = Training.TrainState(model, ps, st, Adam(learning_rate))
     #evaluation set
@@ -74,7 +83,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
         # save the state only if the loss decreased
         if total_loss < total_loss_p
             _ps,_st =  cdev((train_state.parameters, train_state.states))
-            JLD2.save(save_file, Dict("state"=>_st, "params"=>_ps))
+            JLD2.save(fname, Dict("state"=>_st, "params"=>_ps))
         end
         total_loss_p = total_loss
 
