@@ -52,15 +52,15 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     if isfile(fname) && !redo
-        print(stdio, "File $(fname) already exists. Loading parameters. To overwrite, call with `redo=true`\n")
-        ps,st = JLD2.load(fname, "params","state")
-        # TODO: Restart training using the loaded parameters
-        return (ps, st)
+        print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
+        _ps,_st = JLD2.load(fname, "params","state")
+    else
+        _ps,_st = Lux.setup(rng, model)
     end
     dev = reactant_device()
     cdev = cpu_device()
     rng=StableRNG(rseed)
-    ps,st = dev(Lux.setup(rng, model))
+    ps,st = dev((_ps, _st))
     train_state = Training.TrainState(model, ps, st, Adam(learning_rate))
     #evaluation set
     (xe,ye,we)  = dev.(data_provider())
