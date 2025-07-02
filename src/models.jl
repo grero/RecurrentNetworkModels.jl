@@ -43,6 +43,7 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
 end
 
 function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
+    rng=StableRNG(rseed)
     # create signature
     h = crc32c(string(nepochs),h)
     h = crc32c(string(accuracy_threshold), h)
@@ -59,7 +60,6 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
     end
     dev = reactant_device()
     cdev = cpu_device()
-    rng=StableRNG(rseed)
     ps,st = dev((_ps, _st))
     train_state = Training.TrainState(model, ps, st, Adam(learning_rate))
     #evaluation set
