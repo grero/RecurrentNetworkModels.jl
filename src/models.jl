@@ -43,7 +43,14 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
 end
 
 function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
+    rng=StableRNG(rseed)
     # create signature
+    args = Dict(:nepochs => nepochs,
+                :accuracy_threshold => accuracy_threshold,
+                :learning_rate =>  learning_rate,
+                :freeze_input => freeze_input,
+                :rseed => rseed)
+
     h = crc32c(string(nepochs),h)
     h = crc32c(string(accuracy_threshold), h)
     h = crc32c(string(learning_rate), h)
@@ -55,11 +62,13 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
         print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
         _ps,_st = JLD2.load(fname, "params","state")
     else
+        # save the arguments
+        pfname = replace(save_file, ".jld2"=> "_args_$(hs).jld2")
+        JLD2.save(pfname, args)
         _ps,_st = Lux.setup(rng, model)
     end
     dev = reactant_device()
     cdev = cpu_device()
-    rng=StableRNG(rseed)
     ps,st = dev((_ps, _st))
     train_state = Training.TrainState(model, ps, st, Adam(learning_rate))
     #evaluation set
@@ -123,6 +132,5 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
             GC.gc()
         end
     end
-
     return cdev((train_state.parameters, train_state.states))
 end
