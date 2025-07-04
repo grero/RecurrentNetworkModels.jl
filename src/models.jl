@@ -13,22 +13,25 @@ function LeakyRNNModel(in_dims, hidden_dims, out_dims)
         oo = classifier(y)
         so = size(oo)
         output = reshape(oo, so[1], 1, so[2])
+        sy = size(y)
+        yh = reshape(y, sy[1], 1, sy[2])
         for x in x_rest
             y,carry = rnn_cell((x,carry))
             #oo = classifier(y)
             #@show typeof(oo) size(oo)
             output = hcat(output, reshape(classifier(y),so[1],1,so[2]))
+            yh = hcat(yh, reshape(y, sy[1], 1, sy[2]))
         end
-       @return output
+       @return output, yh
     end
 end
 
 const lossfn = WeightedMSELoss()
 
 function compute_loss(model, ps, st, (x,y,w))
-    ŷ, st_ = model(x, ps, st)
-    loss = lossfn(ŷ, y, w)
-    return loss, st_, (;y_pred=ŷ)
+    ŷy, st_ = model(x, ps, st)
+    loss = lossfn(ŷy[1], y, w)
+    return loss, st_, (;y_pred=ŷy[1])
 end
 
 function compute_loss(ŷ, y, w)
@@ -105,7 +108,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
         total_samples = 0
 
         st_ = Lux.testmode(train_state.states) # what does this do?
-        ŷ,st_ = model_compiled(xe, train_state.parameters, st_)
+        (ŷ,_),st_ = model_compiled(xe, train_state.parameters, st_)
         ŷp, y,w = (cdev(ŷ), cdev(ye), cdev(we))
         total_acc = accuracy_func(ŷp, y)*length(y)
         total_loss = compute_loss(ŷp, y,w)*length(y)
