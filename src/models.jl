@@ -45,7 +45,7 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
     train_model(model, ()->(x,y,z), accuracy;kwargs...)
 end
 
-function train_model(model, data_provider, accuracy_func::Function=accuracy;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
+function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
     rng=StableRNG(rseed)
     # create signature
     args = Dict(:nepochs => nepochs,
@@ -111,6 +111,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
         (ŷ,_),st_ = model_compiled(xe, train_state.parameters, st_)
         ŷp, y,w = (cdev(ŷ), cdev(ye), cdev(we))
         total_acc = accuracy_func(ŷp, y)*length(y)
+        total_perf = perf_func(ŷp, y)
         total_loss = compute_loss(ŷp, y,w)*length(y)
         total_samples = length(y)
         total_acc /= total_samples
@@ -122,7 +123,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy;nepo
 
         vloss = @sprintf "%4.5f" total_loss/total_samples
         vacc = @sprintf "%4.5f" total_acc
+        vperf = @sprintf "%4.5f" total_perf
         next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc),
+                                (:ValidationPerf, vperf),
                                 (:TotalLossChange, total_loss_change)])
 
         # cleanup; at some point we should use DeviceIterator here, but for now try and make use of the internals
