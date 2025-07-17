@@ -52,7 +52,8 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
                 :accuracy_threshold => accuracy_threshold,
                 :learning_rate =>  learning_rate,
                 :freeze_input => freeze_input,
-                :rseed => rseed)
+                :rseed => rseed,
+                :h0 => h)
 
     h = crc32c(string(nepochs),h)
     h = crc32c(string(accuracy_threshold), h)
