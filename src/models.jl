@@ -45,14 +45,15 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
     train_model(model, ()->(x,y,z), accuracy;kwargs...)
 end
 
-function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64))
+function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64), load_only=false)
     rng=StableRNG(rseed)
     # create signature
     args = Dict(:nepochs => nepochs,
                 :accuracy_threshold => accuracy_threshold,
                 :learning_rate =>  learning_rate,
                 :freeze_input => freeze_input,
-                :rseed => rseed)
+                :rseed => rseed,
+                :h0 => h)
 
     h = crc32c(string(nepochs),h)
     h = crc32c(string(accuracy_threshold), h)
@@ -61,9 +62,13 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     h = crc32c(string(rseed), h)
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
+    logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
     if isfile(fname) && !redo
-        print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
         _ps,_st = JLD2.load(fname, "params","state")
+        if load_only
+            return _ps, _st
+        end
+        print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
     else
         # save the arguments
         pfname = replace(save_file, ".jld2"=> "_args_$(hs).jld2")
@@ -80,62 +85,69 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     prog = Progress(nepochs, "Training model...")
     total_loss0 = 0.0f0
     total_loss_p = typemax(Float32)
-    for epoch in 1:nepochs
-        (xt,yt,wt)  = dev.(data_provider())
+    open(logfile, "w") do _logfile
+        write(_logfile, "epoch,loss,validation_loss,validation_accuracy,validation_performance,total_loss_change")
+    end
+    open(logfile,"a") do _logfile
+        for epoch in 1:nepochs
+            (xt,yt,wt)  = dev.(data_provider())
 
-        (_, loss, _, train_state) = Training.single_train_step!(
-            AutoEnzyme(), compute_loss, (xt, yt, wt), train_state
-        )
-        total_loss = loss * length(yt)
-        total_samples = length(yt)
+            (_, loss, _, train_state) = Training.single_train_step!(
+                AutoEnzyme(), compute_loss, (xt, yt, wt), train_state
+            )
+            total_loss = loss * length(yt)
+            total_samples = length(yt)
 
-        if epoch == 1
-            total_loss0 = total_loss
-        end
-        loss = @sprintf "%4.5f" total_loss / total_samples
-        total_loss_change = (total_loss0-total_loss)/total_loss0
+            if epoch == 1
+                total_loss0 = total_loss
+            end
+            loss = @sprintf "%4.5f" total_loss / total_samples
+            total_loss_change = (total_loss0-total_loss)/total_loss0
 
-        # save the state only if the loss decreased
-        if total_loss < total_loss_p
-            _ps,_st =  cdev((train_state.parameters, train_state.states))
-            JLD2.save(fname, Dict("state"=>_st, "params"=>_ps))
-        end
-        total_loss_p = total_loss
+            # save the state only if the loss decreased
+            if total_loss < total_loss_p
+                _ps,_st =  cdev((train_state.parameters, train_state.states))
+                JLD2.save(fname, Dict("state"=>_st, "params"=>_ps))
+            end
+            total_loss_p = total_loss
 
-        #set up validation
-        total_acc = 0.0f0
-        total_loss = 0.0f0
-        total_samples = 0
+            #set up validation
+            total_acc = 0.0f0
+            total_loss = 0.0f0
+            total_samples = 0
 
-        st_ = Lux.testmode(train_state.states) # what does this do?
-        (ŷ,_),st_ = model_compiled(xe, train_state.parameters, st_)
-        ŷp, y,w = (cdev(ŷ), cdev(ye), cdev(we))
-        total_acc = accuracy_func(ŷp, y)*length(y)
-        total_perf = perf_func(ŷp, y)
-        total_loss = compute_loss(ŷp, y,w)*length(y)
-        total_samples = length(y)
-        total_acc /= total_samples
-        if total_acc >= accuracy_threshold
-            finish!(prog)
-            print(stdout, "Accuracy threshold achieved at $total_acc. Returning...\n")
-            break
-        end
+            st_ = Lux.testmode(train_state.states) # what does this do?
+            (ŷ,_),st_ = model_compiled(xe, train_state.parameters, st_)
+            ŷp, y,w = (cdev(ŷ), cdev(ye), cdev(we))
+            total_acc = accuracy_func(ŷp, y)*length(y)
+            total_perf = perf_func(ŷp, y)
+            total_loss = compute_loss(ŷp, y,w)*length(y)
+            total_samples = length(y)
+            total_acc /= total_samples
+            if total_acc >= accuracy_threshold
+                finish!(prog)
+                print(stdout, "Accuracy threshold achieved at $total_acc. Returning...\n")
+                break
+            end
 
-        vloss = @sprintf "%4.5f" total_loss/total_samples
-        vacc = @sprintf "%4.5f" total_acc
-        vperf = @sprintf "%4.5f" total_perf
-        next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc),
-                                (:ValidationPerf, vperf),
-                                (:TotalLossChange, total_loss_change)])
+            vloss = @sprintf "%4.5f" total_loss/total_samples
+            vacc = @sprintf "%4.5f" total_acc
+            vperf = @sprintf "%4.5f" total_perf
+            next!(prog, showvalues=[(:Loss, loss),(:ValidationLoss, vloss), (:ValidationAccuracy, vacc),
+                                    (:ValidationPerf, vperf),
+                                    (:TotalLossChange, total_loss_change)])
 
-        # cleanup; at some point we should use DeviceIterator here, but for now try and make use of the internals
-        Lux.MLDataDevices.Internal.unsafe_free!(xt)
-        Lux.MLDataDevices.Internal.unsafe_free!(yt)
-        Lux.MLDataDevices.Internal.unsafe_free!(wt)
-        Lux.MLDataDevices.Internal.unsafe_free!(ŷ)
-        # run GC every 10th epoch
-        if epoch % 10 == 0
-            GC.gc()
+            # this is clunky, as ProgressMeter could probably do this itself. For now, stream the output to a log file
+            write(_logfile, "\n$(epoch),$(loss),$(vloss),$(vacc),$(vperf),$(total_loss_change)")
+            # cleanup; at some point we should use DeviceIterator here, but for now try and make use of the internals
+            Lux.MLDataDevices.Internal.unsafe_free!(xt)
+            Lux.MLDataDevices.Internal.unsafe_free!(yt)
+            Lux.MLDataDevices.Internal.unsafe_free!(wt)
+            Lux.MLDataDevices.Internal.unsafe_free!(ŷ)
+            # run GC every 10th epoch
+            if epoch % 10 == 0
+                GC.gc()
+            end
         end
     end
     return cdev((train_state.parameters, train_state.states))
