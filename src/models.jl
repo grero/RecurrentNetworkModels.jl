@@ -63,6 +63,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
+    claim_training(fname)
     if isfile(fname) && !redo
         _ps,_st = JLD2.load(fname, "params","state")
         if load_only
@@ -70,6 +71,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
         end
         print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
     else
+        if load_only
+            error("No model found at $fname. To train a new model, re-run with `load_only=false`.")
+        end
         # save the arguments
         pfname = replace(save_file, ".jld2"=> "_args_$(hs).jld2")
         JLD2.save(pfname, args)
@@ -150,5 +154,44 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             end
         end
     end
+    release_training(fname)
     return cdev((train_state.parameters, train_state.states))
+end
+
+"""
+    check_running(fname::String)
+
+Check whether the model specified by `fname` is current being trained by another process
+"""
+function check_running(fname::String)
+    rfname = replace(fname, ".jld2"=>".pid")
+    is_running = false
+    pid = -1
+    if isfile(rfname)
+        is_running = true
+        spid = open(rfname) do fid
+            readline(fid)
+        end
+        pid = parse(Int64, spid)
+    end
+    is_running, pid
+end
+
+function claim_training(fname::String)
+    rfname = replace(fname, ".jld2"=>".pid")
+    is_running, pid = check_running(fname)
+    if is_running
+         error("The model specified by $fname is being trained by a julia session with pid $(pid)")
+    end
+    pid = Base.Libc.getpid()
+    open(rfname,"w") do fid
+        write(fid, "$(pid)\n")
+    end
+end
+
+function release_training(fname::String)
+    rfname = replace(fname, ".jld2"=>".pid")
+    if isfile(rfname)
+        rm(rfname)
+    end
 end
