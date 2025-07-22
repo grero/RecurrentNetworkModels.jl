@@ -63,7 +63,6 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
-    claim_training(fname)
     if isfile(fname) && !redo
         _ps,_st = JLD2.load(fname, "params","state")
         if load_only
@@ -75,10 +74,12 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             error("No model found at $fname. To train a new model, re-run with `load_only=false`.")
         end
         # save the arguments
+        # ideally, we should only save after we've claimed this training run
         pfname = replace(save_file, ".jld2"=> "_args_$(hs).jld2")
         JLD2.save(pfname, args)
         _ps,_st = Lux.setup(rng, model)
     end
+    claim_training(fname)
     dev = reactant_device()
     cdev = cpu_device()
     ps,st = dev((_ps, _st))
