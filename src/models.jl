@@ -47,12 +47,15 @@ end
 
 function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64), load_only=false)
     rng=StableRNG(rseed)
+    # this is hacking; there should be a general way of getting this
+    nhidden = model.layers.rnn_cell.out_dims
     # create signature
     args = Dict(:nepochs => nepochs,
                 :accuracy_threshold => accuracy_threshold,
                 :learning_rate =>  learning_rate,
                 :freeze_input => freeze_input,
                 :rseed => rseed,
+                :nhidden => nhidden,
                 :h0 => h)
 
     h = crc32c(string(nepochs),h)
@@ -60,6 +63,10 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     h = crc32c(string(learning_rate), h)
     h = crc32c(string(freeze_input),h)
     h = crc32c(string(rseed), h)
+    # hackish, since 256 was the default
+    if nhidden != 256
+        h = crc32c(string(nhidden),h)
+    end
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
