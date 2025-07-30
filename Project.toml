@@ -1,7 +1,7 @@
 name = "RecurrentNetworkModels"
 uuid = "60024d2f-e447-450b-ab68-c236a8c9f1ce"
 authors = ["Roger Heirkstad <roger.herikstad@gmail.com>"]
-version = "0.6.1"
+version = "0.7.0"
 
 [deps]
 CRC32c = "8bf52ea8-c179-5cab-976a-9e18b702a9bc"
