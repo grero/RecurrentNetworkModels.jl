@@ -179,7 +179,7 @@ end
 """
     check_running(fname::String)
 
-Check whether the model specified by `fname` is current being trained by another process
+Check whether the model specified by `fname` is currently being trained by another process
 """
 function check_running(fname::String)
     rfname = replace(fname, ".jld2"=>".pid")
