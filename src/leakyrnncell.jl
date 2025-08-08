@@ -19,9 +19,9 @@ function LeakyRNNCell(
     activation=tanh;
     use_bias::BoolType=True(),
     train_state::BoolType=False(),
-    init_bias=nothing,
-    init_weight=nothing,
-    init_recurrent_weight=init_weight,
+    init_bias=kaiming_uniform,
+    init_weight=kaiming_uniform,
+    init_recurrent_weight=orthogonal,
     init_state=zeros32,
     τ=Float32(0.2),
     η=Float32(0.0)
