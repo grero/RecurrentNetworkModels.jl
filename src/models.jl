@@ -3,8 +3,10 @@ using Printf
 using StableRNGs
 using CRC32c
 
-function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoid,τ=0.2f0)
-    rnn_cell = LeakyRNNCell(in_dims => hidden_dims;τ=τ)
+scaled_tanh(x::T) where T = tanh(x)/2 .+ T(0.5)
+
+function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoid,τ=0.2f0, η=0.0f0)
+    rnn_cell = LeakyRNNCell(in_dims => hidden_dims;τ=τ,η=η)
     classifier = Dense(hidden_dims => out_dims, output_nonlinearity)
     return @compact(;rnn_cell, classifier) do x::AbstractArray{T,3} where {T}
         #x = reshape(x, size(x)..., 1)
@@ -51,6 +53,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     nhidden = model.layers.rnn_cell.out_dims
     output_nonlinearity = model.layers.classifier.activation
     τ = model.layers.rnn_cell.τ
+    η = model.layers.rnn_cell.η
     # create signature
     args = Dict(:nepochs => nepochs,
                 :accuracy_threshold => accuracy_threshold,
@@ -60,6 +63,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
                 :nhidden => nhidden,
                 :output_nonlinearity => output_nonlinearity,
                 :τ => τ,
+                :η => η,
                 :h0 => h)
 
     h = crc32c(string(nepochs),h)
@@ -76,6 +80,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     end
     if τ != 0.2f0
         h = crc32c(string(τ),h)
+    end
+    if η != 0.0f0
+        h = crc32c(string(η),h)
     end
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")

@@ -36,6 +36,7 @@ function LeakyRNNCell(
         init_recurrent_weight,
         init_state,
         τ,
+        η,
         static(use_bias),
     )
 end
