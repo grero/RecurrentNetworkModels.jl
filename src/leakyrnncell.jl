@@ -10,6 +10,7 @@ using Lux
     init_recurrent_weight
     init_state
     τ
+    η
     use_bias <: StaticBool
 end
 
@@ -18,11 +19,12 @@ function LeakyRNNCell(
     activation=tanh;
     use_bias::BoolType=True(),
     train_state::BoolType=False(),
-    init_bias=nothing,
-    init_weight=nothing,
-    init_recurrent_weight=init_weight,
+    init_bias=kaiming_uniform,
+    init_weight=kaiming_uniform,
+    init_recurrent_weight=orthogonal,
     init_state=zeros32,
-    τ=Float32(0.2)
+    τ=Float32(0.2),
+    η=Float32(0.0)
 )
     return LeakyRNNCell(
         static(train_state),
@@ -34,6 +36,7 @@ function LeakyRNNCell(
         init_recurrent_weight,
         init_state,
         τ,
+        η,
         static(use_bias),
     )
 end
@@ -80,9 +83,10 @@ function (rnn::LeakyRNNCell)(
     z₁ = Lux.fused_dense_bias_activation(identity, ps.weight_hh, hidden_stateₙ, bias_hh)
     bias_ih = Lux.safe_getproperty(ps, Val(:bias_ih))
     z₂ = Lux.fused_dense_bias_activation(identity, ps.weight_ih, y, bias_ih)
-
+    #TODO: This is probably not the ideal way of doing this
+    z₃ = rnn.η*Lux.randn32(st.rng, rnn.out_dims, size(x,2))
     # TODO: This operation can be fused instead of doing add then activation
-    hₙ = Lux.fast_activation!!(rnn.activation, z₁ .+ z₂)
+    hₙ = Lux.fast_activation!!(rnn.activation, z₁ .+ z₂ .+ z₃)
     hₙ = (1-rnn.τ)*hidden_stateₙ .+ rnn.τ*hₙ
     return (hₙ, (hₙ,)), st
 end

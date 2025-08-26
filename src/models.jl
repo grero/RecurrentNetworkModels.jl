@@ -3,9 +3,11 @@ using Printf
 using StableRNGs
 using CRC32c
 
-function LeakyRNNModel(in_dims, hidden_dims, out_dims)
-    rnn_cell = LeakyRNNCell(in_dims => hidden_dims)
-    classifier = Dense(hidden_dims => out_dims, sigmoid)
+scaled_tanh(x::T) where T = tanh(x)/2 .+ T(0.5)
+
+function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoid,τ=0.2f0, η=0.0f0)
+    rnn_cell = LeakyRNNCell(in_dims => hidden_dims;τ=τ,η=η)
+    classifier = Dense(hidden_dims => out_dims, output_nonlinearity)
     return @compact(;rnn_cell, classifier) do x::AbstractArray{T,3} where {T}
         #x = reshape(x, size(x)..., 1)
         x_init, x_rest = Lux.Iterators.peel(LuxOps.eachslice(x, Val(2)))
@@ -49,6 +51,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     rng=StableRNG(rseed)
     # this is hacking; there should be a general way of getting this
     nhidden = model.layers.rnn_cell.out_dims
+    output_nonlinearity = model.layers.classifier.activation
+    τ = model.layers.rnn_cell.τ
+    η = model.layers.rnn_cell.η
     # create signature
     args = Dict(:nepochs => nepochs,
                 :accuracy_threshold => accuracy_threshold,
@@ -56,6 +61,9 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
                 :freeze_input => freeze_input,
                 :rseed => rseed,
                 :nhidden => nhidden,
+                :output_nonlinearity => output_nonlinearity,
+                :τ => τ,
+                :η => η,
                 :h0 => h)
 
     h = crc32c(string(nepochs),h)
@@ -66,6 +74,15 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     # hackish, since 256 was the default
     if nhidden != 256
         h = crc32c(string(nhidden),h)
+    end
+    if output_nonlinearity != Lux.sigmoid
+        h = crc32c(string(output_nonlinearity),h)
+    end
+    if τ != 0.2f0
+        h = crc32c(string(τ),h)
+    end
+    if η != 0.0f0
+        h = crc32c(string(η),h)
     end
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
@@ -158,7 +175,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             Lux.MLDataDevices.Internal.unsafe_free!(ŷ)
             # run GC every 10th epoch
             if epoch % 10 == 0
-                GC.gc()
+               # GC.gc()
             end
         end
     end
@@ -169,7 +186,7 @@ end
 """
     check_running(fname::String)
 
-Check whether the model specified by `fname` is current being trained by another process
+Check whether the model specified by `fname` is currently being trained by another process
 """
 function check_running(fname::String)
     rfname = replace(fname, ".jld2"=>".pid")
