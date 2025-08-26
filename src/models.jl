@@ -175,7 +175,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             Lux.MLDataDevices.Internal.unsafe_free!(ŷ)
             # run GC every 10th epoch
             if epoch % 10 == 0
-                GC.gc()
+               # GC.gc()
             end
         end
     end
