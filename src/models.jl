@@ -5,6 +5,24 @@ using CRC32c
 
 scaled_tanh(x::T) where T = tanh(x)/2 .+ T(0.5)
 
+function LeakyRNNModel(fname::String)
+    if occursin("args", fname)
+        fname_args = fname
+        fname = replace(fname, "_args"=>"")
+    else
+        fname_args = replace(fname, "_state"=>"_state_args")
+    end
+    @show fname fname_args
+    ps,st = JLD2.load(fname, "params","state")
+    # get the dimenions
+    n_in, n_hh = size(ps.rnn_cell.weight_ih)
+    n_out = size(ps.classifier.weight,1)
+    # get the args
+    args = JLD2.load(fname_args)
+    model = LeakyRNNModel(n_in, n_hh, n_out; τ=args["τ"], η=args["η"])
+    model, ps, st
+end
+
 function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoid,τ=0.2f0, η=0.0f0)
     rnn_cell = LeakyRNNCell(in_dims => hidden_dims;τ=τ,η=η)
     classifier = Dense(hidden_dims => out_dims, output_nonlinearity)
