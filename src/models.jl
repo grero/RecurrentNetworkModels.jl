@@ -19,7 +19,8 @@ function LeakyRNNModel(fname::String)
     n_out = size(ps.classifier.weight,1)
     # get the args
     args = JLD2.load(fname_args)
-    LeakyRNNModel(n_in, n_hh, n_out; τ=args["τ"], η=args["η"])
+    model = LeakyRNNModel(n_in, n_hh, n_out; τ=args["τ"], η=args["η"])
+    model, ps, st
 end
 
 function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoid,τ=0.2f0, η=0.0f0)
