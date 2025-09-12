@@ -12,10 +12,9 @@ function LeakyRNNModel(fname::String)
     else
         fname_args = replace(fname, "_state"=>"_state_args")
     end
-    @show fname fname_args
     ps,st = JLD2.load(fname, "params","state")
     # get the dimenions
-    n_in, n_hh = size(ps.rnn_cell.weight_ih)
+    n_hh, n_in = size(ps.rnn_cell.weight_ih)
     n_out = size(ps.classifier.weight,1)
     # get the args
     args = JLD2.load(fname_args)
