@@ -1,6 +1,7 @@
 using Lux
 using Printf
 using StableRNGs
+using Random
 using CRC32c
 
 scaled_tanh(x::T) where T = tanh(x)/2 .+ T(0.5)
