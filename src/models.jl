@@ -65,7 +65,9 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
 end
 
 function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;model_params=nothing, model_state=nothing, nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64), load_only=false)
-    rng=StableRNG(rseed)
+    #rng=StableRNG(rseed)
+    rng = Random.default_rng()
+    Random.seed!(rseed)
     # this is hacking; there should be a general way of getting this
     nhidden = model.layers.rnn_cell.out_dims
     output_nonlinearity = model.layers.classifier.activation
