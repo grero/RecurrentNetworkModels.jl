@@ -3,12 +3,14 @@ using RecurrentNetworkModels
 using Reactant
 using StableRNGs
 using Lux
+using Random
 
 
 @testset "Basic" begin 
     dev = reactant_device()
     cdev = cpu_device()
-    rng = StableRNG(1234)
+    rng = Random.default_rng()
+    Random.seed!(rng, 1234)
     ninputs = 16
     nhidden = 64
     noutputs = 2
