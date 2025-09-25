@@ -64,7 +64,7 @@ function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32
     train_model(model, ()->(x,y,z), accuracy;kwargs...)
 end
 
-function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64), load_only=false)
+function train_model(model, data_provider, accuracy_func::Function=accuracy, perf_func=accuracy_func;model_params=nothing, model_state=nothing, nepochs=25, accuracy_threshold=0.9f0,save_file="model_state.jld2",redo=false, learning_rate=0.01f0, freeze_input=false, rseed=12345, h=zero(UInt64), load_only=false)
     rng=StableRNG(rseed)
     # this is hacking; there should be a general way of getting this
     nhidden = model.layers.rnn_cell.out_dims
@@ -104,9 +104,21 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     hs = string(h, base=16)
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
-    if isfile(fname) && !redo
+    # check if logfile already exists and check progress
+    n_epochs_remaning = nepochs
+    if isfile(logfile) && !redo
+        n_epochs_remaning = open(logfile,"r") do fid
+            lines = readlines(fid)
+            _nepochs = parse(Int64, first(split(lines[end],',')))
+            nepochs - _nepochs
+        end
+    end
+    if (model_params !== nothing) && (model_state !== nothing)
+        _ps = model_params
+        _st = model_state
+    elseif isfile(fname) && !redo
         _ps,_st = JLD2.load(fname, "params","state")
-        if load_only
+        if (load_only) || (n_epochs_remaning <= 0)
             return _ps, _st
         end
         print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
@@ -131,11 +143,13 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     prog = Progress(nepochs, "Training model...")
     total_loss0 = 0.0f0
     total_loss_p = typemax(Float32)
-    open(logfile, "w") do _logfile
-        write(_logfile, "epoch,loss,validation_loss,validation_accuracy,validation_performance,total_loss_change")
+    if !isfile(logfile)
+        open(logfile, "w") do _logfile
+            write(_logfile, "epoch,loss,validation_loss,validation_accuracy,validation_performance,total_loss_change")
+        end
     end
     open(logfile,"a") do _logfile
-        for epoch in 1:nepochs
+        for (ii,epoch) in enumerate((nepochs-n_epochs_remaning+1):nepochs)
             (xt,yt,wt)  = dev.(data_provider())
 
             (_, loss, _, train_state) = Training.single_train_step!(
@@ -144,7 +158,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             total_loss = loss * length(yt)
             total_samples = length(yt)
 
-            if epoch == 1
+            if ii == 1
                 total_loss0 = total_loss
             end
             loss = @sprintf "%4.5f" total_loss / total_samples
