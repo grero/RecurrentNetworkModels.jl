@@ -112,8 +112,10 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     if isfile(logfile) && !redo
         n_epochs_remaning = open(logfile,"r") do fid
             lines = readlines(fid)
-            _nepochs = parse(Int64, first(split(lines[end],',')))
-            nepochs - _nepochs
+            if length(lines) > 1
+                _nepochs = parse(Int64, first(split(lines[end],',')))
+                nepochs - _nepochs
+            end
         end
     end
     if (model_params !== nothing) && (model_state !== nothing)
