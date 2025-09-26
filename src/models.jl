@@ -60,9 +60,9 @@ end
 
 #this is just random; replace with something meaningful
 function accuracy(y_pred, y_true) 
-    Δ = sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:]))
-    Δp = sqrt.(sum(abs2,y_pred[:,end-10:end,:] .+ y_true[:,end-10:end,:]))
-    mean(Δ./Δp)
+    Δ = sqrt(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:]))
+    Δp = sqrt(sum(abs2,y_pred[:,end-10:end,:])) .+ sqrt.(sum(abs2,y_true[:,end-10:end,:]))
+    mean(Δ/Δp)
 end
 
 function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3};kwargs...)
