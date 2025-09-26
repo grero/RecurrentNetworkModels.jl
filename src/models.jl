@@ -108,14 +108,15 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     fname = replace(save_file, ".jld2"=> "_$(hs).jld2")
     logfile = replace(save_file, ".jld2"=> "_log_$(hs).csv")
     # check if logfile already exists and check progress
-    n_epochs_remaning = nepochs
+    n_epochs_remaining = nepochs
     if isfile(logfile) && !redo
-        n_epochs_remaning = open(logfile,"r") do fid
+        n_epochs_remaining = open(logfile,"r") do fid
             lines = readlines(fid)
+            _nepochs = 0
             if length(lines) > 1
                 _nepochs = parse(Int64, first(split(lines[end],',')))
-                nepochs - _nepochs
             end
+            nepochs - _nepochs
         end
     end
     if (model_params !== nothing) && (model_state !== nothing)
@@ -123,7 +124,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
         _st = model_state
     elseif isfile(fname) && !redo
         _ps,_st = JLD2.load(fname, "params","state")
-        if (load_only) || (n_epochs_remaning <= 0)
+        if (load_only) || (n_epochs_remaining <= 0)
             return _ps, _st
         end
         print(stdin, "File $(fname) already exists. Starting training from previous parameters. To restart from a random state, call with `redo=true`\n")
@@ -155,7 +156,7 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
     end
     _logfile = open(logfile, "a")
     try
-        for (ii,epoch) in enumerate((nepochs-n_epochs_remaning+1):nepochs)
+        for (ii,epoch) in enumerate((nepochs-n_epochs_remaining+1):nepochs)
             (xt,yt,wt)  = dev.(data_provider())
 
             (_, loss, _, train_state) = Training.single_train_step!(
