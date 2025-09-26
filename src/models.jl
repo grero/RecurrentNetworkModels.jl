@@ -151,7 +151,8 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
             write(_logfile, "epoch,loss,validation_loss,validation_accuracy,validation_performance,total_loss_change")
         end
     end
-    open(logfile,"a") do _logfile
+    _logfile = open(logfile, "a")
+    try
         for (ii,epoch) in enumerate((nepochs-n_epochs_remaning+1):nepochs)
             (xt,yt,wt)  = dev.(data_provider())
 
@@ -212,8 +213,12 @@ function train_model(model, data_provider, accuracy_func::Function=accuracy, per
                # GC.gc()
             end
         end
+    catch ee
+        rethrow(ee)
+    finally
+        close(_logfile)
+        release_training(fname)
     end
-    release_training(fname)
     return cdev((train_state.parameters, train_state.states))
 end
 
