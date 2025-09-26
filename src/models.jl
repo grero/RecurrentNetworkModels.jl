@@ -59,7 +59,11 @@ function compute_loss(ŷ, y, w)
 end
 
 #this is just random; replace with something meaningful
-accuracy(y_pred, y_true) = mean(sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:],dims=1)))
+function accuracy(y_pred, y_true) 
+    Δ = sqrt.(sum(abs2,y_pred[:,end-10:end,:] .- y_true[:,end-10:end,:]))
+    Δp = sqrt.(sum(abs2,y_pred[:,end-10:end,:] .+ y_true[:,end-10:end,:]))
+    mean(Δ./Δp)
+end
 
 function train_model(model, x::AbstractArray{Float32,3},y::AbstractArray{Float32,3},z::AbstractArray{Float32,3};kwargs...)
     train_model(model, ()->(x,y,z), accuracy;kwargs...)
