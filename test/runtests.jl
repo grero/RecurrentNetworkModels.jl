@@ -27,4 +27,16 @@ using Random
     y,h = cdev.((ye, he))
     @test size(y) == (2,32,128)
     @test size(h) == (64,32,128)
+
+    # check training
+    y = randn(Float32, 2, 32, 128)
+    w = randn(Float32, 2, 32, 128)
+    data_provider() = (x,y,w)
+    ps_train, st_train = RecurrentNetworkModels.train_model(model, data_provider)
+
+    # load with re-training
+    ps_load, st_load = RecurrentNetworkModels.train_model(model, data_provider)
+
+    @test ps_load == ps_train
+    @test st_load == st_train
 end
