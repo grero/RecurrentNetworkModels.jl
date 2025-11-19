@@ -47,11 +47,18 @@ function LeakyRNNModel(in_dims, hidden_dims, out_dims;output_nonlinearity=sigmoi
 end
 
 const lossfn = WeightedMSELoss()
+const poissonfn = WeightedPoissonLoss()
 
 function compute_loss(model, ps, st, (x,y,w))
     ŷy, st_ = model(x, ps, st)
     loss = lossfn(ŷy[1], y, w)
     return loss, st_, (;y_pred=ŷy[1])
+end
+
+function compute_poisson_loss(model, ps, st, (x,y,w))
+    (ŷ,_), st_ = model(x, ps, st)
+    loss = poissonfn(ŷ, y, w)
+    return loss, st_, (;y_pred=ŷ)
 end
 
 function compute_loss(ŷ, y, w)
