@@ -3,6 +3,7 @@ import Lux.unsafe_apply_loss
 using Lux: @thunk, CRC, GenericLossFunction, AbstractLossFunction, NoTangent
 using Lux: ForwardDiff
 using Lux.ForwardDiff:Dual, Partials
+using SpecialFunctions
 
 @concrete struct GenericWeightedLossFunction <: AbstractLossFunction
     loss_fn
@@ -113,3 +114,16 @@ function CRC.rrule(
 
     return CRC.rrule_via_ad(cfg, fallback_fused_agg, sum, op, x, y,w)
 end
+
+"""
+Loss function that returns the negative log-likelihood of n given η=log(λ) assuming a Poisson distribution
+"""
+function poisson_loss(η,n)
+    lg = loggamma(n+1)
+    -n*η + lg + exp(η)
+end
+
+
+weighted_poisson_loss(x::T1, y::T2, w::T3) where {T1,T2,T3} = w*poisson_loss(x,y)
+
+WeightedPoissonLoss(; agg=mean) = GenericWeightedLossFunction(weighted_poisson_loss; agg)

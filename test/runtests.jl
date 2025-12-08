@@ -4,7 +4,26 @@ using Reactant
 using StableRNGs
 using Lux
 using Random
+using StatsBase
 
+@testset "Loss functions" begin
+    n = [0,1,2,3]
+    η = log.([0.1, 0.5,1.2, 1.5])
+    w = [0.1, 0.2, 0.3, 0.5]
+    ll = RecurrentNetworkModels.poisson_loss.(η,n)
+    @test ll ≈ [0.10000000000000002, 1.1931471805599454, 1.528504066972036, 2.0753641449035616]
+
+    llw = RecurrentNetworkModels.weighted_poisson_loss.(η,n,w)
+    @test llw ≈ [0.010000000000000002, 0.23862943611198909, 0.45855122009161076, 1.0376820724517808]
+
+    nn = repeat(n, 1, 5, 10)
+    ηη = repeat(η, 1, 5, 10)
+    ww = repeat(w, 1, 5, 10)
+    func = RecurrentNetworkModels.WeightedPoissonLoss()
+    llq = func(ηη, nn, ww)
+    @test llq ≈ 0.43621568216384626
+    @test llq ≈ mean(llw)
+end
 
 @testset "Basic" begin 
     dev = reactant_device()
